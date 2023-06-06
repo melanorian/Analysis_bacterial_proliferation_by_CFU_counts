@@ -1,0 +1,403 @@
+---
+title: "MM20230322_summary_CFU"
+author: "Mela3ie Mendel"
+date: "23-3-2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# clean environment
+```{r}
+rm(list=ls())
+```
+
+```{r cars}
+library(ggplot2)
+library(dplyr)
+library(multcompView)
+library(agricolae)
+library(ggsignif)
+library(ggpubr)
+library("report")
+setwd("C:/Users/Mende012/OneDrive - Universiteit Utrecht/Projects/4. Pst effector library/4.14 Repeat test infiltration different strains/CFU")
+```
+
+
+# filter for samples of interest 
+```{r}
+pst_raw <- read.delim("LDM20230123_CFU_count_calculations_different_Pseudomonas.txt")
+head(pst_raw)
+
+#filter out all samples at t2
+#pst_raw <- pst_raw %>% filter(dpi =="2")
+#pst_raw[is.na(pst_raw)] <- 0
+#pst_raw
+```
+
+# Pseudomonas strains as factors
+```{r}
+pst_raw$Pseudomonas.strain <- as.factor(pst_raw$Pseudomonas.strain)
+pst_raw$Date <- as.factor(pst_raw$Date)
+
+# remove rows with NA
+pst_raw <- pst_raw[1:210,]
+```
+
+# log10 transformation of data for better presentation
+```{r}
+MIN <- min(pst_raw$CFU.ml..1cm.2[pst_raw$CFU.ml..1cm.2!=0]) # set lowest CFU counts as 0
+pst_raw$CFU.log10 <- log10(pst_raw$CFU.ml..1cm.2+MIN)
+```
+
+# make df containing only data I want to plot: Pst strain, CFU log10 transormed
+
+```{r}
+Pst_strain <- as.factor(pst_raw$Pseudomonas.strain)
+Pst_CFU <- pst_raw$CFU.log10
+Pst_exp_date <- as.factor(pst_raw$Date)
+Pst_OD <- pst_raw$OD6000.infiltrated.0dpi
+Pst_comment <- pst_raw$Comment
+
+simple_df <- data.frame(Pst_strain, Pst_OD, Pst_exp_date, Pst_CFU, Pst_comment)
+
+simple_df_un <- simple_df[(simple_df$Pst_comment == "uninfiltrated"),]
+simple_df <- simple_df[!(simple_df$Pst_comment == "uninfiltrated"),]
+```
+
+
+# Basic Box Plots comparing Pst strains
+```{r}
+# subset into different OD
+df_OD2 <- simple_df[(simple_df$Pst_OD == "0.200"),]
+df_OD4 <- simple_df[(simple_df$Pst_OD == "0.400"),]
+df_OD6 <- simple_df[(simple_df$Pst_OD == "0.600"),]
+
+
+# basic boxplot OD 0.2
+ OD2 <- ggplot(df_OD2, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
+               outlier.colour = NA,           # Outliers color, 
+               alpha=0.9)+                       # Box color transparency
+  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
+  
+  geom_point(position = position_jitterdodge(0.1)) +
+  
+  guides(x = guide_axis(angle = 45 ))  +          # axis label
+  theme_classic() +
+  ylim(4, 8.5)
+
+OD2
+
+
+# basic boxplot OD 0.4
+ OD4 <- ggplot(df_OD4, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
+               outlier.colour = NA,           # Outliers color, 
+               alpha=0.9)+                       # Box color transparency
+  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
+  
+  geom_point(position = position_jitterdodge(0.1)) +
+  
+  guides(x = guide_axis(angle = 45 ))  +          # axis label
+  theme_classic() +
+  ylim(4, 8.5)
+
+OD4
+
+
+# basic boxplot OD 0.6
+ OD6 <- ggplot(df_OD6, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
+               outlier.colour = NA,           # Outliers color, 
+               alpha=0.9)+                       # Box color transparency
+  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
+  
+  geom_point(position = position_jitterdodge(0.1)) +
+  
+  guides(x = guide_axis(angle = 45 ))  +          # axis label
+  theme_classic() +
+  ylim(4, 8.5)
+
+OD6
+
+ggarrange(OD2, OD4, OD6, ncol = 3)
+```
+# Plot by strain over time
+```{r}
+# subset simple df by strain
+simple_df <- simple_df[!(simple_df$Pst_OD == "c"),]
+
+Eth <- simple_df[(simple_df$Pst_strain == "EtHAn"),]
+DC <- simple_df[(simple_df$Pst_strain == "DC3000"),]
+D28 <- simple_df[(simple_df$Pst_strain == "D28E"),]
+D36 <- simple_df[(simple_df$Pst_strain == "D36E"),]
+CEL <- simple_df[(simple_df$Pst_strain == "deltaCEL"),]
+hrc <- simple_df[(simple_df$Pst_strain == "hrcC"),]
+psp <- simple_df[(simple_df$Pst_strain == "PSP"),]
+```
+
+
+```{r}
+# 1. remove C from df
+# 2. subset simple_df by bacteria
+# 3. for each strain make a plot showing CFU counts of all 3 concentration per day
+co <- c("#E69F00", "#009E73")
+
+plot <- ggplot(psp, aes(x=as.factor(Pst_OD), y=Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(#fill= c("seagreen4", "red")              
+               outlier.colour = "red",           # Outliers color, 
+               alpha=0.9)+                    # Box color transparency
+  labs(x= (unique(Pst_strain)), y = "log10 (CFU/cm2)") +
+  
+
+  geom_point(position = position_jitterdodge(0.1)) +
+  theme_classic() +
+  guides(x = guide_axis(angle = 45 ))  +          # axis label
+  scale_fill_manual(values = co) +
+  scale_color_manual(values = co) +
+  ylim(4, 9)
+
+ggsave("MM20230403_psp.svg", plot, width = 3, height = 4, units = "in", dpi = 300)
+```
+
+# stats t-test
+```{r}
+all_OD <- as.vector(unique(simple_df$Pst_OD))
+all_strain <- c(Eth, DC, D28, D36, CEL, hrc, psp)
+
+tt <- function(df_Pst, OD, date1, date2){
+a <- as.data.frame(df_Pst[(df_Pst$Pst_OD == OD),])
+gr1 <- a[(a$Pst_exp_date == date1),]
+gr2 <- a[(a$Pst_exp_date == date2),]
+b <- t.test(gr1$Pst_CFU, gr2$Pst_CFU, alternative = "two.sided", var.equal = TRUE)
+return(b$p.value)
+}
+
+# apply function over OD
+for(ODs in all_OD){
+  pval <- tt(df_Pst = psp, OD = ODs, date1 = "19-1-2023", date2 = "21-1-2023")
+  print(pval)
+} %>% unlist()
+
+ts_Eth <- data.frame(all_OD, unlist())
+  
+# df to store results of t-test
+df_t_res <- data.frame(all_OD, print(format(round(unlist(res_t),3), nsmall = 3))) 
+
+# rename columns in a sensible way
+colnames(df_t_res)[1] = "dpi"
+colnames(df_t_res)[2] = "p-value"
+```
+
+
+
+
+```{r}
+# write a function for the plot tested above
+```{r}
+# define the function 
+plot_template <- function(data){
+  ggplot(data, aes(x=as.factor(Pst_OD), y=Pst_CFU, color = Pst_exp_date))+
+  
+    geom_boxplot(outlier.colour = "red",           # Outliers color, 
+                 alpha=0.9)+                    # Box color transparency
+    labs(x= as.character(unique(Pst_strain)), y = "log10 (CFU/cm2)") +
+  
+    geom_point(position = position_jitterdodge(0.1)) +
+    theme_classic() +
+    guides(x = guide_axis(angle = 45 ))  +          # axis label
+    scale_fill_manual(values = co) +
+    scale_color_manual(values = co) +
+    ylim(4, 9)
+    }
+
+
+
+# define the vector whichs element will be used in the plot_templat
+strains <- unique(simple_df$Pst_strain)
+
+subset <- subset(simple_df, select = Pst_strain)
+# chatGPT beta
+
+# Create a data frame with columns for country, gender, and age
+df <- data.frame(country = c("USA", "Canada", "USA", "Canada"),
+                 gender = c("Male", "Male", "Female", "Female"),
+                 age = c(25, 30, 35, 40))
+
+# Use the by function to split the data by country and gender:
+plots <- by(simple_df, simple_df$Pst_strain, function(subset) {
+  
+  # Create a ggplot2 plot of age versus gender
+  ggplot(subset, aes(x = gender, y = age)) +
+    geom_bar(stat = "identity")
+})
+
+# Print each plot
+for (i in seq_along(plots)) {
+  print(plots[[i]])
+}
+
+```
+
+
+
+# Basic Box Plots comparing Pst strains infiltrate
+```{r}
+# subset into different OD
+df_OD2u <- simple_df_un[(simple_df_un$Pst_OD == "0.200"),]
+df_OD4u <- simple_df_un[(simple_df_un$Pst_OD == "0.400"),]
+df_OD6u <- simple_df_un[(simple_df_un$Pst_OD == "0.600"),]
+
+
+# basic boxplot OD 0.2
+ OD2u <- ggplot(df_OD2u, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
+               outlier.colour = NA,           # Outliers color, 
+               alpha=0.9)+                       # Box color transparency
+  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
+  
+  geom_point(position = position_jitterdodge(0.1)) +
+  
+  guides(x = guide_axis(angle = 45 ))  +          # axis label
+  theme_classic() +
+  ylim(7, 9)
+
+OD2u
+
+
+# basic boxplot OD 0.4
+ OD4u <- ggplot(df_OD4u, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
+               outlier.colour = NA,           # Outliers color, 
+               alpha=0.9)+                       # Box color transparency
+  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
+  
+  geom_point(position = position_jitterdodge(0.1)) +
+  
+  guides(x = guide_axis(angle = 45 ))  +          # axis label
+  theme_classic() +
+  ylim(7, 9)
+
+OD4u
+
+
+# basic boxplot OD 0.6
+ OD6u <- ggplot(df_OD2u, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
+               outlier.colour = NA,           # Outliers color, 
+               alpha=0.9)+                       # Box color transparency
+  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
+  
+  geom_point(position = position_jitterdodge(0.1)) +
+  
+  guides(x = guide_axis(angle = 45 ))  +          # axis label
+  theme_classic() +
+  ylim(4, 8.5)
+
+OD6u
+
+ggarrange(OD2u, OD4u, OD6u, ncol = 3)
+
+```
+
+# ANOVA
+# 1. ANOVA to analyse wheather there are differences between the groups
+# H0 All means are the same 
+# H1 at least one mean is different
+
+anova_pst <- aov(Pst_CFU ~ Pst_strain, data = simple_df)
+
+  {summary(anova_pst)
+    summary.lm(anova_pst)}
+
+# Posthoc
+
+```{r}
+# 2. Posthoc to see which groups are significantly different - generate labels
+
+# posthoc
+  TUKEY <- TukeyHSD(anova_pst)
+  
+  generate_label_df <- function(TUKEY, variable){
+    
+    # Extract labels and factor levels from Tukey post-hoc
+    Tukey.levels <- TUKEY[[variable]][,4]
+    Tukey.labels <- data.frame(multcompLetters(Tukey.levels)['Letters'])
+    
+    #I need to put the labels in the same order as in the boxplot :
+    Tukey.labels$Pst_strain = rownames(Tukey.labels)
+    Tukey.labels=Tukey.labels[order(Tukey.labels$Pst_strain) , ]
+    return(Tukey.labels)
+    }
+
+# Apply the function on my dataset
+
+  LABELS <- generate_label_df(TUKEY , "Pst_strain")
+  
+  names(LABELS) <- c("Letters","Pst_strain")
+  
+  yvalue <- aggregate(Pst_CFU ~ Pst_strain, data = simple_df, mean) # obtain letter position for y axis using means
+  
+  LABELS$Pst_strain <- (unlist(lapply(strsplit(LABELS$Pst_strain,'[_]'),function(x){x[[1]]})))
+  
+  final <- merge(yvalue,LABELS) 
+  
+  stat_labels <- as.vector(LABELS$Letters) # extract letter column as a vector to use for plot
+  
+```
+
+# add labels of TUKEY test
+```{r}
+
+# basic boxplot
+ ggplot(simple_df, aes(x=as.factor(Pst_strain), y=Pst_CFU)) +
+  geom_boxplot(fill="seagreen4",                 #box colour
+               outlier.colour = "red",           # Outliers color, 
+               alpha=0.9)+                       # Box color transparency
+  xlab("Pseudomonas strain") +                   # axis label
+  ylab("log10 (CFU/cm2)") +
+
+   geom_jitter(shape=16, position=position_jitter(0.1)) +
+   stat_boxplot(geom = "errorbar",               # Error bars
+                    width = 0.2)
+```
+
+
+# check for batch effect
+
+# select right data 
+```{r}
+selected <- c ("D36", "DC3000")
+control_only <- simple_df[which(simple_df$Pst_strain == selected),] 
+control_only
+
+D36_only <- simple_df[which(simple_df$Pst_strain == "D36"),] 
+D36_only
+
+DC3000_only <- simple_df[which(simple_df$Pst_strain == "DC3000"),] 
+DC3000_only
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
