@@ -1,22 +1,10 @@
----
 # title: "Final Analysis CFU count DC3000 Effector library"
 # author: "Melanie Mendel"
 # date: "07-01-2023"
 # output: html_document
 # update: "06-06-2023"
----
-  
+
 # 1. Basic settings & data import ----
-
-# clean up
-rm(list=ls())
-
-# set wd for whole document
-setwd("C:/Users/Mende012/Documents/Bioinformatics/CFU_counts/Analysis_bacterial_proliferation_by_CFU_counts")
-
-# generate prefix string including date/ Initials
-current_date <- gsub("-", "", as.character(Sys.Date()))# Get the current date as character
-pre <- paste("MM", current_date, sep = "")
 
 # load required packages
 library(dplyr)
@@ -29,6 +17,16 @@ library("ggpubr")
 library(tidyverse)
 library(plotly)
 library(openxlsx)
+
+# clean up
+rm(list=ls())
+
+# set wd for whole document
+setwd("C:/Users/Mende012/Documents/Bioinformatics/CFU_counts/Analysis_bacterial_proliferation_by_CFU_counts")
+
+# generate prefix string including date/ Initials
+current_date <- gsub("-", "", as.character(Sys.Date()))# Get the current date as character
+pre <- paste("MM", current_date, sep = "")
 
 # filter for samples of interest 
 pst_raw <- read.xlsx ("CFU_count_calculations_DC3000_library.xlsx", detectDates = T)
@@ -141,10 +139,6 @@ stat_labels <- as.vector(LABELS$Letters)
 
 # 5. Box Plots comparing Pst strains, 2 dpi, TUKEY results, save as pdf (default) ----
 
-pdf(file = paste(pre, sep = "","_CFU_count_raw_TUKEY.pdf"),
-     width = 10,
-     height = 6)
-
 g_2 <-  ggplot(simple_df, aes(x=as.factor(Pst_strain), y=Pst_CFU)) + 
   
   geom_boxplot(fill="white",                 # box colour
@@ -172,7 +166,11 @@ g_2 <-  ggplot(simple_df, aes(x=as.factor(Pst_strain), y=Pst_CFU)) +
 
 g_2
 
-# Run dev.off() to create the file!
+ggsave(filename =  paste(pre, sep = "","_CFU_DC3000_eflibrary_boxplot_TUKEY_nonormal.svg"), 
+       plot = g_2,
+       device = "svg")
+
+# Run dev.off() to create the file
 dev.off()
 
 
@@ -291,11 +289,7 @@ TUKEY_n <- TukeyHSD(anova_pst_norm)
   print(LABELS_n)
   sink()
  
-# 8. Box Plots comparing Pst strains, 2 dpi, TUKEY results, normalised save as pdf (default) ----
-  
-  pdf(file = paste(pre, sep = "","_CFU_count_TUKEY_normalised.pdf"),
-      width = 10,
-      height = 6)
+# 8A. Box Plots comparing Pst strains, 2 dpi, TUKEY results, normalised save as pdf (default) ----
   
   g_3 <-  ggplot(simple_df_norm, aes(x=as.factor(Pst_strain_n), y=Pst_CFU_n)) + 
     
@@ -325,11 +319,110 @@ TUKEY_n <- TukeyHSD(anova_pst_norm)
   
   g_3
   
+  ggsave(filename =  paste(pre, sep = "","_CFU_DC3000_eflibrary_boxplot_TUKEY_normal.svg"), 
+         plot = g_3,
+         device = "svg")
+  
 # Run dev.off() to create the file!
   dev.off()
   
+# 8B.(one colour) Box Plots comparing Pst strains, 2 dpi, TUKEY results, normalised save as pdf (default) ----
+
   
+mon <- rep(x = "#E69F00",times = 20)
+ 
+  # basic boxplot
+  g3 <-  ggplot(
+    
+    #input data
+    simple_df_norm, aes(x=as.factor(Pst_strain_n), y=Pst_CFU_n)) +
+    
+    # generate basic boxplot
+    geom_boxplot(fill="white",                 # box colour
+                 outlier.colour = "white",     # Outliers color, 
+                 alpha=0) +                    # Box color transparency
+    
+    # overlay with jitter
+    geom_jitter(shape=16, position=position_jitter(0.1),
+                aes(colour = factor(Date))) +
+    scale_colour_manual(values = mon) +
+    
+    # define the theme of the boxplot
+    theme_bw() +  # make the bg white
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+          panel.border = element_blank(), # remove background, frame
+          axis.line = element_line(colour = "black")) +
+    
+    # label the axises 
+    xlab("Pseudomonas strain") +                
+    ylab("log10 fold change (CFU/cm2)") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # turn the tick marks on the x axis 45 degree 
+    
+    
+    # define axis limits if needed
+    expand_limits( y = c(0, 5)) +
+    
+    # add statistical information: error bars, statistical results
+    stat_boxplot(geom = "errorbar", # Error bars
+                 width = 0.2)  +
+    geom_text(data = final_n, aes(y=Pst_CFU_n, label = Letters_n), 
+              vjust= -7 ,hjust= 0.5)
+    
   
+  g3
+  
+  ggsave(filename =  paste(pre, sep = "","_CFU_DC3000_eflibrary_boxplot_TUKEY_normal_mono.svg"), 
+         plot = g3,
+         device = "svg")
+  
+  # Run dev.off() to create the file!
+  dev.off()
+  
+# 8C.(one colour) Box Plots comparing Pst strains, 2 dpi,normalised save as pdf (default) ----
+  
+  # basic boxplot
+  g4 <-  ggplot(
+    
+    #input data
+    simple_df_norm, aes(x=as.factor(Pst_strain_n), y=Pst_CFU_n)) +
+    
+    # generate basic boxplot
+    geom_boxplot(fill="white",                 # box colour
+                 outlier.colour = "white",     # Outliers color, 
+                 alpha=0) +                    # Box color transparency
+    
+    # overlay with jitter
+    geom_jitter(shape=16, position=position_jitter(0.1),
+                aes(colour = factor(Date))) +
+    scale_colour_manual(values = mon) +
+    
+    # define the theme of the boxplot
+    theme_bw() +  # make the bg white
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+          panel.border = element_blank(), # remove background, frame
+          axis.line = element_line(colour = "black")) +
+    
+    # label the axises 
+    xlab("Pseudomonas strain") +                
+    ylab("log10 fold change (CFU/cm2)") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # turn the tick marks on the x axis 45 degree 
+    
+    
+    # define axis limits if needed
+    expand_limits( y = c(0, 5)) +
+    
+    # add statistical information: error bars, statistical results
+    stat_boxplot(geom = "errorbar", # Error bars
+                 width = 0.2)
+  
+  g4
+  
+  ggsave(filename =  paste(pre, sep = "","_CFU_DC3000_eflibrary_boxplot_normal_mono.svg"), 
+         plot = g4,
+         device = "svg")
+  
+  # Run dev.off() to create the file!
+  dev.off()
   
 
 # alternative stats Dunnett's test
