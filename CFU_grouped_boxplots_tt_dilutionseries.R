@@ -2,7 +2,7 @@
 #author: "Mela3ie Mendel"
 #date: "23-3-2023"
 #output: html_document
-#update 08-10-24
+#update 09-10-24
 
 # clean environment
 rm(list=ls())
@@ -19,8 +19,9 @@ library("report")
 library("readxl")
 
 # Set workingdirectory
+SUF <- "_rm0_nomin_nooutlier"
 setwd("/home/melanie/D36E_assays/CFU_data/")
-dir_out <- "/home/melanie/D36E_assays/CFU_output"
+dir_out <- "/home/melanie/D36E_assays/CFU_output/2025092024/"
 
 # generate prefix string including date/ Initials
 current_date <- gsub("-", "", as.character(Sys.Date()))# Get the current date as character
@@ -36,10 +37,14 @@ pst_raw$Date <- as.factor(pst_raw$dpi)
 
 # remove rows with NA (if extra rows are loaded)
 # pst_raw <- pst_raw[1:210,]
+# rm if 0
+zeros <- pst_raw[!pst_raw$`Calculate CFU/ml per 1 cm2 of harvested leaf` == 0 ,]
+cat("nr removed rows due to zero-value",nrow(pst_raw) - nrow(zeros))
+pst_raw <- zeros
 
 # 2.2 log10 transformation of data for better presentation
 MIN <- min(pst_raw$`Calculate CFU/ml per 1 cm2 of harvested leaf`[pst_raw$`Calculate CFU/ml per 1 cm2 of harvested leaf`!=0]) # set lowest CFU counts as 0
-pst_raw$CFU.log10 <- log10(pst_raw$`Calculate CFU/ml per 1 cm2 of harvested leaf`+MIN)
+pst_raw$CFU.log10 <- log10(pst_raw$`Calculate CFU/ml per 1 cm2 of harvested leaf`) #+MIN)
 
 # 2.3 make df containing only data I want to plot: Pst strain, CFU log10 transormed
 Pst_strain <- as.factor(pst_raw$Pseudomonas.strain)
@@ -58,7 +63,7 @@ simple_df <- simple_df[!(simple_df$Pst_exp_date == "i"), ] # in planta samples
 remove_outliers <- function(df) {
   df %>%
     group_by(Pst_strain, Pst_OD, Pst_exp_date) %>%
-    head() %>%
+    
     filter(Pst_CFU >= (quantile(Pst_CFU, 0.25) - 1.5 * IQR(Pst_CFU)) &
              Pst_CFU <= (quantile(Pst_CFU, 0.75) + 1.5 * IQR(Pst_CFU)))
 }
@@ -75,44 +80,44 @@ unique_OD <- unique(simple_df$Pst_OD)
 # 4.2 Define the function to generate and save plots for each subset
 
 generate_OD_plot <- function(df, OD) {
-  subset_df <- df[df$Pst_OD == OD, ]
-  
-  g <- ggplot(subset_df, aes(x = as.factor(Pst_strain), y = Pst_CFU, color = Pst_exp_date)) +
-    geom_boxplot(outlier.colour = "red", alpha = 0.9) +
-    labs(x = OD, y = "log10 (CFU/cm2)") +
-    ggtitle(paste0("OD: ", OD)) +
-    geom_point(position = position_jitterdodge(0.1)) +
-    theme_classic() +
-    guides(x = guide_axis(angle = 45)) +
-    scale_fill_manual(values = co) +
-    scale_color_manual(values = co) +
-    ylim(2.5, 9)
-  
-  return(g)
+subset_df <- df[df$Pst_OD == OD, ]
+
+g <- ggplot(subset_df, aes(x = as.factor(Pst_strain), y = Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(outlier.colour = "red", alpha = 0.9) +
+  labs(x = OD, y = "log10 (CFU/cm2)") +
+  ggtitle(paste0("OD: ", OD)) +
+  geom_point(position = position_jitterdodge(0.1)) +
+  theme_classic() +
+  guides(x = guide_axis(angle = 45)) +
+  scale_fill_manual(values = co) +
+  scale_color_manual(values = co) +
+  ylim(2.5, 9)
+
+return(g)
 }
 
 # Generate the plots using lapply
 co <- c("#44AA99", "#E69F00", "#999999")
 OD_plot_list <- lapply(unique_OD, generate_OD_plot, df = simple_df)
-OD_grid <- ggarrange(plotlist = OD_plot_list, ncol = length(unique_ODs), nrow = 1)
+OD_grid <- ggarrange(plotlist = OD_plot_list, ncol = length(unique_OD), nrow = 1)
 
 # Save the plots using purrr::map2 and a lambda function
 map2(.x = OD_plot_list, 
-     .y = unique_ODs, 
-     .f = ~ggsave(filename = paste0(dir_out, pre, "_boxplot_", .y, ".svg"),
-                  plot = .x, 
-                  width = 3.5, 
-                  height = 4, 
-                  units = "in", 
-                  dpi = 300)
+   .y = unique_OD, 
+   .f = ~ggsave(filename = paste0(dir_out, pre, "_boxplot_", SUF, .y, ".svg"),
+                plot = .x, 
+                width = 3.5, 
+                height = 4, 
+                units = "in", 
+                dpi = 300)
 )
 
-ggsave(filename = paste0(dir_out, pre, "_OD_grid", ".svg"),
-       plot = OD_grid, 
-       width = 12, 
-       height = 4, 
-       units = "in", 
-       dpi = 300)
+ggsave(filename = paste0(dir_out, pre, "_OD_grid", SUF, ".svg"),
+     plot = OD_grid, 
+     width = 12, 
+     height = 4, 
+     units = "in", 
+     dpi = 300)
 
 # 4. Boxplot grouped by strain strain over time (UPDATE: strains if needed)----
 
@@ -124,20 +129,20 @@ unique_strains <- unique(simple_df$Pst_strain)
 # 4.2 Define the function to generate and save plots for each subset
 
 generate_strain_plot <- function(df, strain) {
-  subset_df <- df[df$Pst_strain == strain, ]
-  
-  g <- ggplot(subset_df, aes(x = as.factor(Pst_OD), y = Pst_CFU, color = Pst_exp_date)) +
-    geom_boxplot(outlier.colour = "red", alpha = 0.9) +
-    labs(x = strain, y = "log10 (CFU/cm2)") +
-    ggtitle("Strain:", strain) +
-    geom_point(position = position_jitterdodge(0.1)) +
-    theme_classic() +
-    guides(x = guide_axis(angle = 45)) +
-    scale_fill_manual(values = co) +
-    scale_color_manual(values = co) +
-    ylim(2.5, 9)
-  
-  return(g)
+subset_df <- df[df$Pst_strain == strain, ]
+
+g <- ggplot(subset_df, aes(x = as.factor(Pst_OD), y = Pst_CFU, color = Pst_exp_date)) +
+  geom_boxplot(outlier.colour = "red", alpha = 0.9) +
+  labs(x = strain, y = "log10 (CFU/cm2)") +
+  ggtitle("Strain:", strain) +
+  geom_point(position = position_jitterdodge(0.1)) +
+  theme_classic() +
+  guides(x = guide_axis(angle = 45)) +
+  scale_fill_manual(values = co) +
+  scale_color_manual(values = co) +
+  ylim(2.5, 9)
+
+return(g)
 }
 
 # Generate the plots using lapply
@@ -146,21 +151,21 @@ strain_grid <- ggarrange(plotlist = strain_plot_list, ncol = length(unique_strai
 
 # Save the plots using purrr::map2 and a lambda function
 map2(.x = strain_plot_list, 
-     .y = unique_strains, 
-     .f = ~ggsave(filename = paste0(dir_out, pre, "_boxplot_", .y, ".svg"),
-                  plot = .x, 
-                  width = 3, 
-                  height = 4, 
-                  units = "in", 
-                  dpi = 300)
+   .y = unique_strains, 
+   .f = ~ggsave(filename = paste0(dir_out, pre, "_boxplot_", SUF, .y, ".svg"),
+                plot = .x, 
+                width = 3, 
+                height = 4, 
+                units = "in", 
+                dpi = 300)
 )
 
-ggsave(filename = paste0(dir_out, pre, "_strain_grid", ".svg"),
-       plot = strain_grid, 
-       width = 12, 
-       height = 4, 
-       units = "in", 
-       dpi = 300)
+ggsave(filename = paste0(dir_out, pre, "_strain_grid", SUF, ".svg"),
+     plot = strain_grid, 
+     width = 12, 
+     height = 4, 
+     units = "in", 
+     dpi = 300)
 
 # 5. Statistical analysis that compares for each OD, Pst strain 0dpi and 2dpi (or days of interest)
 # 5. Statistical analysis using a two-sided t-test ---- 
@@ -170,47 +175,56 @@ OD <- unique(simple_df$Pst_OD) # extract the ODs from the orginal df
 d1 <- "0"  # Defines the reference dpi (usally 0dpi), epxeriment_date column as input  
 d2 <- "2"  # Defines dpi of interest, usually 2dpi, epxeriment_date column as input
 
-# 5.2 Define the tt function: It takes as input the df of 1 bacterial strain, a specific OD
-#     and two dates that are to be compared
-
-tt <- function(df_Pst, OD, date1, date2) {
-  a <- as.data.frame(df_Pst[(df_Pst$Pst_OD == OD), ])
-  gr1 <- a[(a$Pst_exp_date == date1), ]
-  gr2 <- a[(a$Pst_exp_date == date2), ]
-  b <- t.test(gr1$Pst_CFU, gr2$Pst_CFU, alternative = "two.sided", var.equal = TRUE)
-  return(b$p.value)
+# 5.2 Define the t-test function
+f_tt <- function(df_Pst, OD, date1, date2, variance_equal) {
+    gr1 <- df_Pst[df_Pst$Pst_exp_date == date1, ]
+    gr2 <- df_Pst[df_Pst$Pst_exp_date == date2, ]
+    b <- t.test(gr1$Pst_CFU, gr2$Pst_CFU, alternative = "two.sided", var.equal = variance_equal)
+    return(b$p.value)
   }
-  
-# 5.3 Create a list of subsets using lapply and split
-subset_list <- lapply(unique_strains, function(strain) {
-    subset_df <- simple_df[simple_df$Pst_strain == strain, ]
-    split(subset_df, subset_df$Pst_OD)
-  })  
 
-# 5.4 Perform t-tests on each subset using lapply
-result_list <- lapply(subset_list, function(subset) {
+f_perform_tt <- function(subset_list, date1, date2, variance_equal) {
+  
+  # 1. Perform t-tests on each subset using lapply
+  result_list <- lapply(subset_list, function(subset) {
     lapply(subset, function(df) {
-      pval <- tt(df_Pst = df, OD = df$Pst_OD[1], date1 = d1, date2 = d2)
+      pval <- f_tt(df_Pst = df,
+                 OD = df$Pst_OD[1], # start from first element
+                 date1 = date1, 
+                 date2 = date2, 
+                 variance_equal = variance_equal
+                 )
       data.frame(strain = df$Pst_strain[1], dpi = df$Pst_OD[1], p_value = pval)
     })
   })
-
-# 5.6 Combine the results into a single dataframe
-df_t_res <- do.call(rbind, unlist(result_list, recursive = FALSE)) 
-# recursive = F: nested list, only first level is flattened into vector (1 df/ tt)
-
-# 5.7 Create an empty significance column
-df_t_res$significance <- ""
   
-# 5.8 Update the significance column based on the p-value
-df_t_res[df_t_res$p_value > 0.05, "significance"] <- "n.s"
-df_t_res[df_t_res$p_value < 0.05, "significance"] <- "*"
-df_t_res[df_t_res$p_value < 0.01, "significance"] <- "**"
-df_t_res[df_t_res$p_value < 0.001, "significance"] <- "***"
-colnames(df_t_res) <- c("strain", "OD600", "p-val", "significance")
-rownames(df_t_res) <- c(1:nrow(df_t_res))
+  # 2. Combine the results into a single dataframe
+  df_t_res <- do.call(rbind, unlist(result_list, recursive = FALSE))
+  
+  # 3. Create a significance column based on the p-values
+  df_t_res$significance <- ""
+  df_t_res[df_t_res$p_value > 0.05, "significance"] <- "n.s"
+  df_t_res[df_t_res$p_value < 0.05, "significance"] <- "*"
+  df_t_res[df_t_res$p_value < 0.01, "significance"] <- "**"
+  df_t_res[df_t_res$p_value < 0.001, "significance"] <- "***"
+  
+  # 4. Update column names and row names
+  colnames(df_t_res) <- c("strain", "OD600", "p-val", "significance")
+  rownames(df_t_res) <- 1:nrow(df_t_res)
+  
+  # 5. Save the output to a .txt file
+  tt <- ifelse(variance_equal, "_equalvar", "_welch")
+  output_file <- paste0(dir_out, pre, "_tt_twosided_t0_vs_t2", SUF, tt, ".txt")
+  sink(output_file)
+  print(df_t_res)
+  sink()
+  
+  # Return the result dataframe
+  return(cat(output_file))
+}
 
-# 5.9 safe the output as a .txt file
-sink(paste0(dir_out, "/", pre, "_tt_twosided_t0_vs_t2.txt"))
-print(df_t_res)
-sink()
+res_tt <- f_perform_tt(subset_list = subset_list, 
+           date1 = d1, 
+           date2 = d2, 
+           variance_equal = FALSE
+           )
