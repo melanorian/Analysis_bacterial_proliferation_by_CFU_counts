@@ -50,14 +50,26 @@ Pst_comment <- pst_raw$Notes
 
 simple_df <- data.frame(Pst_strain, Pst_OD, Pst_exp_date, Pst_CFU, Pst_comment)
 
-
 # 2.5 filtre for infiltrated samples
 simple_df_un <- simple_df[simple_df$Pst_exp_date == "i", ] # infiltrate samples
 simple_df <- simple_df[!(simple_df$Pst_exp_date == "i"), ] # in planta samples
 
+# Remove outliers
+remove_outliers <- function(df) {
+  df %>%
+    group_by(Pst_strain, Pst_OD, Pst_exp_date) %>%
+    head() %>%
+    filter(Pst_CFU >= (quantile(Pst_CFU, 0.25) - 1.5 * IQR(Pst_CFU)) &
+             Pst_CFU <= (quantile(Pst_CFU, 0.75) + 1.5 * IQR(Pst_CFU)))
+}
+
+# Apply the function
+cleaned_df <- remove_outliers(simple_df)
+cat("nr removed samples:", nrow(simple_df) - nrow(cleaned_df))
+simple_df <- cleaned_df
+
 # 3. Basic Box Plots comparing Pst strains ----
 # 3.2 basic boxplot OD 0.2-0.6 - UPDATE OD in script if needed
-
 unique_OD <- unique(simple_df$Pst_OD)
 
 # 4.2 Define the function to generate and save plots for each subset
@@ -68,7 +80,7 @@ generate_OD_plot <- function(df, OD) {
   g <- ggplot(subset_df, aes(x = as.factor(Pst_strain), y = Pst_CFU, color = Pst_exp_date)) +
     geom_boxplot(outlier.colour = "red", alpha = 0.9) +
     labs(x = OD, y = "log10 (CFU/cm2)") +
-    ggtitle("OD:", OD) +
+    ggtitle(paste0("OD: ", OD)) +
     geom_point(position = position_jitterdodge(0.1)) +
     theme_classic() +
     guides(x = guide_axis(angle = 45)) +
@@ -150,16 +162,13 @@ ggsave(filename = paste0(dir_out, pre, "_strain_grid", ".svg"),
        units = "in", 
        dpi = 300)
 
-
-# Construction site start _______________________________________________________________
-
 # 5. Statistical analysis that compares for each OD, Pst strain 0dpi and 2dpi (or days of interest)
 # 5. Statistical analysis using a two-sided t-test ---- 
 
 # 5.1 DEFINE VARIABLES OF INTEREST
 OD <- unique(simple_df$Pst_OD) # extract the ODs from the orginal df
-d1 <- "2023-01-19"  # Defines the reference dpi (usally 0dpi), epxeriment_date column as input  
-d2 <- "2023-01-21"  # Defines dpi of interest, usually 2dpi, epxeriment_date column as input
+d1 <- "0"  # Defines the reference dpi (usally 0dpi), epxeriment_date column as input  
+d2 <- "2"  # Defines dpi of interest, usually 2dpi, epxeriment_date column as input
 
 # 5.2 Define the tt function: It takes as input the df of 1 bacterial strain, a specific OD
 #     and two dates that are to be compared
@@ -187,7 +196,8 @@ result_list <- lapply(subset_list, function(subset) {
   })
 
 # 5.6 Combine the results into a single dataframe
-df_t_res <- do.call(rbind, unlist(result_list, recursive = FALSE)) # recursive = F: nested list, only first level is flattened into vector (1 df/ tt)
+df_t_res <- do.call(rbind, unlist(result_list, recursive = FALSE)) 
+# recursive = F: nested list, only first level is flattened into vector (1 df/ tt)
 
 # 5.7 Create an empty significance column
 df_t_res$significance <- ""
@@ -197,8 +207,10 @@ df_t_res[df_t_res$p_value > 0.05, "significance"] <- "n.s"
 df_t_res[df_t_res$p_value < 0.05, "significance"] <- "*"
 df_t_res[df_t_res$p_value < 0.01, "significance"] <- "**"
 df_t_res[df_t_res$p_value < 0.001, "significance"] <- "***"
-  
+colnames(df_t_res) <- c("strain", "OD600", "p-val", "significance")
+rownames(df_t_res) <- c(1:nrow(df_t_res))
+
 # 5.9 safe the output as a .txt file
-sink(paste(pre, sep = "","_tt_summary_CUF_Pst_strains.txt"))
+sink(paste0(dir_out, "/", pre, "_tt_twosided_t0_vs_t2.txt"))
 print(df_t_res)
 sink()
