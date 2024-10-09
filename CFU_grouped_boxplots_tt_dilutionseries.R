@@ -19,6 +19,7 @@ library("report")
 library("readxl")
 
 # Set workingdirectory
+variance_for_tt <- TRUE
 SUF <- "_rm0_nomin_nooutlier"
 setwd("/home/melanie/D36E_assays/CFU_data/")
 dir_out <- "/home/melanie/D36E_assays/CFU_output/2025092024/t0_t2/"
@@ -59,13 +60,16 @@ simple_df <- data.frame(Pst_strain, Pst_OD, Pst_exp_date, Pst_CFU, Pst_comment)
 simple_df_un <- simple_df[simple_df$Pst_exp_date == "i", ] # infiltrate samples
 simple_df <- simple_df[!(simple_df$Pst_exp_date == "i"), ] # in planta samples
 
+# Remove 6 dpi samples
+simple_df <- simple_df[!(simple_df$Pst_exp_date == "6"), ]
+
 # Remove outliers
 remove_outliers <- function(df) {
 df %>%
 group_by(Pst_strain, Pst_OD, Pst_exp_date) %>%
 
 filter(Pst_CFU >= (quantile(Pst_CFU, 0.25) - 1.5 * IQR(Pst_CFU)) &
-       Pst_CFU <= (quantile(Pst_CFU, 0.75) + 1.5 * IQR(Pst_CFU)))
+     Pst_CFU <= (quantile(Pst_CFU, 0.75) + 1.5 * IQR(Pst_CFU)))
 }
 
 # Apply the function
@@ -105,11 +109,11 @@ OD_grid <- ggarrange(plotlist = OD_plot_list, ncol = length(unique_OD), nrow = 1
 map2(.x = OD_plot_list, 
 .y = unique_OD, 
 .f = ~ggsave(filename = paste0(dir_out, pre, "_boxplot_", SUF, .y, ".svg"),
-          plot = .x, 
-          width = 3.5, 
-          height = 4, 
-          units = "in", 
-          dpi = 300)
+        plot = .x, 
+        width = 3.5, 
+        height = 4, 
+        units = "in", 
+        dpi = 300)
 )
 
 ggsave(filename = paste0(dir_out, pre, "_OD_grid", SUF, ".svg"),
@@ -153,11 +157,11 @@ strain_grid <- ggarrange(plotlist = strain_plot_list, ncol = length(unique_strai
 map2(.x = strain_plot_list, 
 .y = unique_strains, 
 .f = ~ggsave(filename = paste0(dir_out, pre, "_boxplot_", SUF, .y, ".svg"),
-          plot = .x, 
-          width = 3, 
-          height = 4, 
-          units = "in", 
-          dpi = 300)
+        plot = .x, 
+        width = 3, 
+        height = 4, 
+        units = "in", 
+        dpi = 300)
 )
 
 ggsave(filename = paste0(dir_out, pre, "_strain_grid", SUF, ".svg"),
@@ -189,11 +193,11 @@ f_perform_tt <- function(subset_list, date1, date2, variance_equal) {
 result_list <- lapply(subset_list, function(subset) {
 lapply(subset, function(df) {
 pval <- f_tt(df_Pst = df,
-           OD = df$Pst_OD[1], # start from first element
-           date1 = date1, 
-           date2 = date2, 
-           variance_equal = variance_equal
-           )
+         OD = df$Pst_OD[1], # start from first element
+         date1 = date1, 
+         date2 = date2, 
+         variance_equal = variance_equal
+         )
 data.frame(strain = df$Pst_strain[1], dpi = df$Pst_OD[1], p_value = pval)
 })
 })
@@ -230,7 +234,7 @@ split(subset_df, subset_df$Pst_OD)
 })
 
 res_tt <- f_perform_tt(subset_list = subset_list, 
-     date1 = d1, 
-     date2 = d2, 
-     variance_equal = FALSE
-     )
+   date1 = d1, 
+   date2 = d2, 
+   variance_equal = variance_for_tt
+   )
