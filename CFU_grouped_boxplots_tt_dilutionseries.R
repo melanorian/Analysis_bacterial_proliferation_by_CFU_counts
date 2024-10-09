@@ -56,60 +56,51 @@ simple_df_un <- simple_df[simple_df$Pst_exp_date == "i", ] # infiltrate samples
 simple_df <- simple_df[!(simple_df$Pst_exp_date == "i"), ] # in planta samples
 
 # 3. Basic Box Plots comparing Pst strains ----
-# 3.1 subset into different OD
-df_OD04 <- simple_df[(simple_df$Pst_OD == "0.4"),]
-df_OD4 <- simple_df[(simple_df$Pst_OD == "0.04"),]
-df_OD6 <- simple_df[(simple_df$Pst_OD == "0.004"),]
-
-
 # 3.2 basic boxplot OD 0.2-0.6 - UPDATE OD in script if needed
- OD2 <- ggplot(df_OD04, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
-  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
-               outlier.colour = NA,           # Outliers color, 
-               alpha=0.9)+                       # Box color transparency
-  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
+
+unique_OD <- unique(simple_df$Pst_OD)
+
+# 4.2 Define the function to generate and save plots for each subset
+
+generate_OD_plot <- function(df, OD) {
+  subset_df <- df[df$Pst_OD == OD, ]
   
-  geom_point(position = position_jitterdodge(0.1)) +
+  g <- ggplot(subset_df, aes(x = as.factor(Pst_strain), y = Pst_CFU, color = Pst_exp_date)) +
+    geom_boxplot(outlier.colour = "red", alpha = 0.9) +
+    labs(x = OD, y = "log10 (CFU/cm2)") +
+    ggtitle("OD:", OD) +
+    geom_point(position = position_jitterdodge(0.1)) +
+    theme_classic() +
+    guides(x = guide_axis(angle = 45)) +
+    scale_fill_manual(values = co) +
+    scale_color_manual(values = co) +
+    ylim(2.5, 9)
   
-  guides(x = guide_axis(angle = 45 ))  +          # axis label
-  theme_classic() +
-  ylim(4, 8.5)
+  return(g)
+}
 
-OD2
+# Generate the plots using lapply
+co <- c("#44AA99", "#E69F00", "#999999")
+OD_plot_list <- lapply(unique_OD, generate_OD_plot, df = simple_df)
+OD_grid <- ggarrange(plotlist = OD_plot_list, ncol = length(unique_ODs), nrow = 1)
 
+# Save the plots using purrr::map2 and a lambda function
+map2(.x = OD_plot_list, 
+     .y = unique_ODs, 
+     .f = ~ggsave(filename = paste0(dir_out, pre, "_boxplot_", .y, ".svg"),
+                  plot = .x, 
+                  width = 3.5, 
+                  height = 4, 
+                  units = "in", 
+                  dpi = 300)
+)
 
-# basic boxplot OD 0.4
- OD4 <- ggplot(df_OD4, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
-  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
-               outlier.colour = NA,           # Outliers color, 
-               alpha=0.9)+                       # Box color transparency
-  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
-  
-  geom_point(position = position_jitterdodge(0.1)) +
-  
-  guides(x = guide_axis(angle = 45 ))  +          # axis label
-  theme_classic() +
-  ylim(4, 8.5)
-
-OD4
-
-
-# basic boxplot OD 0.6
- OD6 <- ggplot(df_OD6, aes(x=as.factor(Pst_strain), y=Pst_CFU, color = Pst_exp_date)) +
-  geom_boxplot(#fill= c("seagreen4", "red")                # box colour
-               outlier.colour = NA,           # Outliers color, 
-               alpha=0.9)+                       # Box color transparency
-  labs(x= "Pseudomonas strain", y = "log10 (CFU/cm2)") +
-  
-  geom_point(position = position_jitterdodge(0.1)) +
-  
-  guides(x = guide_axis(angle = 45 ))  +          # axis label
-  theme_classic() +
-  ylim(4, 8.5)
-
-OD6
-
-ggarrange(OD2, OD4, OD6, ncol = 3)
+ggsave(filename = paste0(dir_out, pre, "_OD_grid", ".svg"),
+       plot = OD_grid, 
+       width = 12, 
+       height = 4, 
+       units = "in", 
+       dpi = 300)
 
 # 4. Boxplot grouped by strain strain over time (UPDATE: strains if needed)----
 
@@ -120,25 +111,45 @@ unique_strains <- unique(simple_df$Pst_strain)
 
 # 4.2 Define the function to generate and save plots for each subset
 
-co <- c("#44AA99", "#E69F00") # define 2 colours 
-generate_plot <- function(df, strain) {
+generate_strain_plot <- function(df, strain) {
   subset_df <- df[df$Pst_strain == strain, ]
   
   g <- ggplot(subset_df, aes(x = as.factor(Pst_OD), y = Pst_CFU, color = Pst_exp_date)) +
     geom_boxplot(outlier.colour = "red", alpha = 0.9) +
     labs(x = strain, y = "log10 (CFU/cm2)") +
+    ggtitle("Strain:", strain) +
     geom_point(position = position_jitterdodge(0.1)) +
     theme_classic() +
     guides(x = guide_axis(angle = 45)) +
     scale_fill_manual(values = co) +
     scale_color_manual(values = co) +
-    ylim(4, 9)
+    ylim(2.5, 9)
   
-  ggsave(paste0(pre, "boxplot_", strain, ".svg"), plot = g, width = 3, height = 4, units = "in", dpi = 300)
+  return(g)
 }
 
-# 4.3 Call the function using lapply for each unique strain
-lapply(unique_strains, generate_plot, df = simple_df)
+# Generate the plots using lapply
+strain_plot_list <- lapply(unique_strains, generate_strain_plot, df = simple_df)
+strain_grid <- ggarrange(plotlist = strain_plot_list, ncol = length(unique_strains), nrow = 1)
+
+# Save the plots using purrr::map2 and a lambda function
+map2(.x = strain_plot_list, 
+     .y = unique_strains, 
+     .f = ~ggsave(filename = paste0(dir_out, pre, "_boxplot_", .y, ".svg"),
+                  plot = .x, 
+                  width = 3, 
+                  height = 4, 
+                  units = "in", 
+                  dpi = 300)
+)
+
+ggsave(filename = paste0(dir_out, pre, "_strain_grid", ".svg"),
+       plot = strain_grid, 
+       width = 12, 
+       height = 4, 
+       units = "in", 
+       dpi = 300)
+
 
 # Construction site start _______________________________________________________________
 
