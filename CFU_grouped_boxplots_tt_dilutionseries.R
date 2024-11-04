@@ -12,7 +12,7 @@ rm(list=ls())
 library(ggplot2)
 library(dplyr)
 library(multcompView)
-install.packages("agricolae")
+library("agricolae")
 library(ggsignif)
 library("ggpubr")
 library("report")
@@ -21,15 +21,15 @@ library("readxl")
 # Set workingdirectory
 variance_for_tt <- TRUE
 SUF <- "_rm0_nomin_nooutlier"
-setwd("/home/melanie/D36E_assays/CFU_data/")
-dir_out <- "/home/melanie/D36E_assays/CFU_output/20240513/"
+setwd("/home/melanie/working_directory/D36E_assays/CFU_data")
+dir_out <- "/home/melanie/working_directory/D36E_assays/CFU_output/20240920/t0_t2_t6" 
 
 # generate prefix string including date/ Initials
 current_date <- gsub("-", "", as.character(Sys.Date()))# Get the current date as character
 pre <- paste("MM", current_date, sep = "")
 
 # filter for samples of interest 
-pst_raw <- read_xlsx("MM20240513_summary_CFU_count_calculations_cultivars.xlsx")
+pst_raw <- read_xlsx("2025092024_CFU_count_calculations_dilutions.xlsx")
 
 # 2. Select/ filter data ----
 # 2.1 Pseudomonas strains as factors
@@ -53,7 +53,7 @@ pst_raw$CFU.log10 <- log10(as.numeric(pst_raw$`Calculate CFU/ml per 1 cm2 of har
 Pst_strain <- as.factor(pst_raw$Pseudomonas.strain)
 Pst_CFU <- pst_raw$CFU.log10
 Pst_exp_date <- as.factor(pst_raw$Date)
-Pst_OD <- pst_raw$`Code of other samples on leaf`
+Pst_OD <- pst_raw$`OD6000 infiltrated 0dpi`
 Pst_comment <- pst_raw$Notes
 
 simple_df <- data.frame(Pst_strain, Pst_OD, Pst_exp_date, Pst_CFU)
@@ -64,8 +64,9 @@ simple_df <- simple_df[!(simple_df$Pst_exp_date == "i"), ] # in planta samples
 
 # Remove 6 dpi samples, "bad" samples 
 #simple_df <- simple_df[!(simple_df$Pst_exp_date == "6"), ]
-simple_df <- simple_df[!(simple_df$Pst_comment == "bad"), ]
+#simple_df <- simple_df[!(simple_df$Pst_comment == "bad"), ]
 
+df <- simple_df
 # Remove outliers
 remove_outliers <- function(df) {
 df %>%
@@ -106,7 +107,7 @@ return(g)
 # Generate the plots using lapply
 co <- c("#44AA99", "#E69F00", "#999999")
 
-simple_df <- simple_df[(simple_df$Pst_strain == "D36" | simple_df$Pst_strain == "DC3000"),]
+#simple_df <- simple_df[(simple_df$Pst_strain == "D36" | simple_df$Pst_strain == "DC3000"),]
 OD_plot_list <- lapply(unique_OD, generate_OD_plot, df = simple_df)
 OD_grid <- ggarrange(plotlist = OD_plot_list, ncol = length(unique_OD), nrow = 1)
 
@@ -280,3 +281,48 @@ date2 = d2,
 variance_equal = variance_for_tt
 )
 
+
+### ANOVA + PstHoc for subsets ###### ----
+
+# A) ANOVA 
+subset_df <- simple_df[simple_df$Pst_OD == "0.4", ]
+
+subset_df <- subset_df[subset_df$Pst_strain == "AvrE1",]
+subset_df$ID <- paste(subset_df$Pst_strain, subset_df$Pst_exp_date, sep = "_")
+
+anova_pst <- aov(Pst_CFU ~ ID, data = subset_df)
+
+{summary(anova_pst)
+  summary.lm(anova_pst)}
+
+# B) PostHoc
+
+# 2. Posthoc to see which groups are significantly different - generate labels
+
+# posthoc
+TUKEY <- TukeyHSD(anova_pst)
+
+generate_label_df <- function(TUKEY, variable){
+  
+  # Extract labels and factor levels from Tukey post-hoc
+  Tukey.levels <- TUKEY[[variable]][,4]
+  Tukey.labels <- data.frame(multcompLetters(Tukey.levels)['Letters'])
+  
+  #I need to put the labels in the same order as in the boxplot :
+  Tukey.labels$ID = rownames(Tukey.labels)
+  Tukey.labels=Tukey.labels[order(Tukey.labels$ID) , ]
+  return(Tukey.labels)
+}
+
+# Apply the function on my dataset
+
+LABELS <- generate_label_df(TUKEY , "ID")
+yvalue <- aggregate(Pst_CFU ~ ID, data = subset_df, mean) # obtain letter position for y axis using means
+final <- merge(yvalue,LABELS, by = "ID") 
+
+output_file <- paste0(dir_out, "/", pre, "_TUKEY_t0_to_t6_OD04_AvrE1", ".txt")
+sink(output_file)
+print(final)
+sink()
+
+stat_labels <- as.vector(LABELS$Letters) # extract letter column as a vector to use for plot
